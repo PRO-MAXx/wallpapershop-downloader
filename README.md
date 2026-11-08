@@ -27,6 +27,19 @@ Before using the app, make sure you have installed:
 
    [➡️ Download the latest release](https://github.com/PRO-MAXx/wallpapershop-downloader/releases/latest)
 
+2. Save your Steam username and password:
+ - username : `"your_username"`
+ - password : `"your_password"`
+
+   then press 'save' to save your profile
+  - **saved profile can be easily accessed by the dropdown menu** 
+
+## Example:
+- username : 13702743389 (valid on 08-11-26)
+- password : ygpPkxwbco
+- username : Soull4k 
+- password : Snyder.0113
+   
 2. Go to any Steam Workshop page, such as:
 
    - Wallpaper Engine
