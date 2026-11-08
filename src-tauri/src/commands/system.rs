@@ -1,0 +1,168 @@
+use crate::models::AppSettings;
+use crate::services::{DownloaderService, StorageService};
+use std::path::PathBuf;
+use tauri_plugin_dialog::DialogExt;
+
+/// Check if .NET 9.0 Runtime is installed
+#[tauri::command]
+pub async fn check_dotnet_runtime() -> Result<bool, String> {
+    DownloaderService::check_dotnet_runtime().await
+}
+
+/// Open folder picker dialog
+#[tauri::command]
+pub async fn select_folder(
+    app: tauri::AppHandle,
+    app_id: Option<String>,
+) -> Result<Option<String>, String> {
+    let Some(folder_path) = app.dialog().file().blocking_pick_folder() else {
+        return Ok(None);
+    };
+
+    let selected_path = folder_path
+        .into_path()
+        .map_err(|e| format!("Invalid folder path: {}", e))?;
+
+    let final_path = resolve_download_path(selected_path, app_id.as_deref());
+
+    Ok(Some(final_path.display().to_string()))
+}
+
+fn resolve_download_path(selected_path: PathBuf, app_id: Option<&str>) -> PathBuf {
+    if app_id == Some("431960") {
+        let wallpaper_engine_projects = selected_path.join("projects").join("myprojects");
+        if wallpaper_engine_projects.exists() {
+            return wallpaper_engine_projects;
+        }
+    }
+
+    selected_path
+}
+
+/// Load app settings
+#[tauri::command]
+pub fn load_settings() -> Result<AppSettings, String> {
+    StorageService::load_settings()
+}
+
+/// Save app settings
+#[tauri::command]
+pub fn save_settings(settings: AppSettings) -> Result<(), String> {
+    StorageService::save_settings(&settings)
+}
+
+/// Steam game search result
+#[derive(serde::Serialize)]
+pub struct SteamGameResult {
+    pub app_id: String,
+    pub name: String,
+    pub icon: Option<String>,
+}
+
+/// Search Steam games by name using Steam Store Search API
+#[tauri::command]
+pub async fn search_steam_games(query: String) -> Result<Vec<SteamGameResult>, String> {
+    if query.trim().is_empty() {
+        return Ok(vec![]);
+    }
+
+    let url = format!(
+        "https://store.steampowered.com/api/storesearch/?term={}&l=en&cc=US",
+        urlencoding::encode(&query)
+    );
+
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+    let empty_items: Vec<serde_json::Value> = vec![];
+    let items = json["items"].as_array().unwrap_or(&empty_items);
+
+    let results: Vec<SteamGameResult> = items
+        .iter()
+        .take(10) // Limit to 10 results
+        .filter_map(|item| {
+            let app_id = item["id"].as_u64()?.to_string();
+            let name = item["name"].as_str()?.to_string();
+            let icon = item["tiny_image"].as_str().map(|s| s.to_string());
+            Some(SteamGameResult { app_id, name, icon })
+        })
+        .collect();
+
+    Ok(results)
+}
+
+/// Workshop item details from Steam API
+#[derive(serde::Serialize)]
+pub struct WorkshopItemDetails {
+    pub publishedfileid: String,
+    pub title: String,
+    pub preview_url: Option<String>,
+    pub description: Option<String>,
+    pub creator: Option<String>,
+    pub file_size: Option<u64>,
+}
+
+/// Get workshop item details from Steam API
+#[tauri::command]
+pub async fn get_workshop_details(pubfile_id: String) -> Result<WorkshopItemDetails, String> {
+    if pubfile_id.trim().is_empty() {
+        return Err("Empty pubfile ID".to_string());
+    }
+
+    // Use Steam ISteamRemoteStorage/GetPublishedFileDetails API
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/")
+        .form(&[("itemcount", "1"), ("publishedfileids[0]", &pubfile_id)])
+        .send()
+        .await
+        .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+    // Parse response
+    let file_details = &json["response"]["publishedfiledetails"][0];
+
+    if file_details.is_null() {
+        return Err("Workshop item not found".to_string());
+    }
+
+    // Check for result code (1 = success)
+    let result = file_details["result"].as_i64().unwrap_or(0);
+    if result != 1 {
+        return Err("Workshop item not found or not accessible".to_string());
+    }
+
+    Ok(WorkshopItemDetails {
+        publishedfileid: file_details["publishedfileid"]
+            .as_str()
+            .unwrap_or(&pubfile_id)
+            .to_string(),
+        title: file_details["title"]
+            .as_str()
+            .unwrap_or("Unknown")
+            .to_string(),
+        preview_url: file_details["preview_url"].as_str().map(|s| s.to_string()),
+        description: file_details["description"].as_str().map(|s| {
+            // Truncate description to first 200 chars
+            if s.len() > 200 {
+                format!("{}...", &s[..200])
+            } else {
+                s.to_string()
+            }
+        }),
+        creator: file_details["creator"].as_str().map(|s| s.to_string()),
+        file_size: file_details["file_size"]
+            .as_u64()
+            .or_else(|| file_details["file_size"].as_str()?.parse().ok()),
+    })
+}

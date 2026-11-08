@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #f6f5ff;
+  --color-surface: #ffffff;
+  --color-surface-hover: #edebff;
+  --color-primary: #5b6cf6;
+  --color-primary-hover: #4a56e0;
+  --color-success: #22c55e;
+  --color-destructive: #ef4444;
+  --color-foreground: #14123a;
+  --color-foreground-muted: #5f5b8a;
+  --color-muted: #9591bd;
+  --color-border: #e0ddf5;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+  --font-sans: "Inter", system-ui, sans-serif;
+}
+
+/* Dark mode (toggled by adding the "dark" class on <html>) */
+:root.dark {
+  --color-background: #0b0a1a;
+  --color-surface: #14122b;
+  --color-surface-hover: #1e1b40;
+  --color-primary: #7c8cff;
+  --color-primary-hover: #9aa6ff;
+  --color-success: #34d399;
+  --color-destructive: #f87171;
+  --color-foreground: #eceaff;
+  --color-foreground-muted: #a4a0cf;
+  --color-muted: #7773a3;
+  --color-border: #2a2650;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  overflow: hidden;
+}
+
+/* Toast animation */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* Custom title bar drag region */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+/* Custom title bar drag region control */
+.no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  pointer-events: auto;
+}
+
+.no-drag button {
+  pointer-events: auto;
+  cursor: pointer;
+}
